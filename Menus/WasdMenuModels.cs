@@ -4,7 +4,8 @@ namespace UmbrellaWeaponRestrict.Menus;
 
 internal sealed class WasdMenuItem
 {
-    public required string Label { get; init; }
+    /// <summary>Read each time the menu is drawn, so labels that show limits stay current.</summary>
+    public required Func<string> Label { get; init; }
     public required Action<CCSPlayerController> OnSelect { get; init; }
 
     /// <summary>HTML color of the row, also while selected; white when null.</summary>

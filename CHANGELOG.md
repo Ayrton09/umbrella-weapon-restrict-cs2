@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.3] - 2026-11-23
+
+### Fixed
+- Open menus show the current limits when another admin, a reload or the player count changes them.
+- A refused spawn or plugin weapon is only deleted once the entity list confirms it is a live weapon.
+- `Maps` patterns with many `*` can no longer slow down a map start.
+
+### Changed
+- Built against CounterStrikeSharp 1.0.380; 1.0.376 or newer still works.
+
 ## [1.0.2] - 2026-09-30
 
 ### Added

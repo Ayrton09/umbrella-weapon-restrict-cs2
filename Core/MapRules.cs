@@ -119,9 +119,14 @@ public sealed class MapRules
         return result;
     }
 
+    /// <summary>
+    /// The non-backtracking engine matches in linear time, so a pattern full of '*' cannot stall a map
+    /// start.
+    /// </summary>
     private static Regex ToRegex(string pattern)
     {
-        return new Regex($"^{Regex.Escape(pattern).Replace("\\*", ".*")}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return new Regex($"^{Regex.Escape(pattern).Replace("\\*", ".*")}$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
     }
 
     private sealed record Entry(string Name, Regex Pattern, int Specificity, (int Index, MapLimit Limit)[] Limits);

@@ -26,6 +26,9 @@ public sealed class RestrictionState
     private readonly int[,] _baseLimits = new int[WeaponCatalog.All.Count, 2];
     private readonly int?[] _perPlayerLimits = new int?[WeaponCatalog.All.Count];
 
+    /// <summary>Goes up whenever any limit changes, so views of the limits know when to redraw.</summary>
+    public long Version { get; private set; }
+
     public static int Clamp(int amount) => Math.Clamp(amount, Unlimited, MaxLimit);
 
     public static int Clamp(int amount, string name, ICollection<string> warnings)
@@ -46,6 +49,8 @@ public sealed class RestrictionState
             _baseLimits[index, 0] = limits[index].T;
             _baseLimits[index, 1] = limits[index].CT;
         }
+
+        Version++;
     }
 
     public void SetBase(WeaponDefinition weapon, RestrictTeam team, int amount)
@@ -59,16 +64,26 @@ public sealed class RestrictionState
         {
             _baseLimits[weapon.Index, 1] = amount;
         }
+
+        Version++;
     }
 
     public void SetPerPlayer(WeaponDefinition weapon, int? limit)
     {
-        _perPlayerLimits[weapon.Index] = limit;
+        if (_perPlayerLimits[weapon.Index] != limit)
+        {
+            _perPlayerLimits[weapon.Index] = limit;
+            Version++;
+        }
     }
 
     public void ClearPerPlayer()
     {
-        Array.Clear(_perPlayerLimits);
+        if (_perPlayerLimits.Any(limit => limit.HasValue))
+        {
+            Array.Clear(_perPlayerLimits);
+            Version++;
+        }
     }
 
     public int Get(WeaponDefinition weapon, CsTeam team)

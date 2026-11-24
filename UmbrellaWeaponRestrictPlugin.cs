@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
@@ -7,6 +8,7 @@ using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Config;
+using CounterStrikeSharp.API.Modules.Entities;
 using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Utils;
@@ -27,9 +29,10 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
     private const double ChatLimitTimeoutSeconds = 30;
     private const int MaxSlots = 64;
     private const int MaxListLineLength = 90;
+    private const int MaxEntityWalk = 32768;
 
     public override string ModuleName => "Umbrella Weapon Restrict";
-    public override string ModuleVersion => "1.0.2";
+    public override string ModuleVersion => "1.0.3";
     public override string ModuleAuthor => "Ayrton09";
     public override string ModuleDescription => "Weapon restrictions by team, weapon group and player count";
 
@@ -53,6 +56,8 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
     private int _lastPerPlayerCount = -1;
     private DateTime _lastHookErrorUtc = DateTime.MinValue;
     private int _itemOffsetInWeapon = -1;
+    private int _identityNextOffset = -1;
+    private long _menuLimitsVersion = -1;
 
     public void OnConfigParsed(UmbrellaWeaponRestrictConfig config)
     {
@@ -232,6 +237,13 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
 
     private void OnTick()
     {
+        // Limits changed by another admin, a reload or the player count show up in open menus too.
+        if (_limits.Version != _menuLimitsVersion)
+        {
+            _menuLimitsVersion = _limits.Version;
+            _menus.Invalidate();
+        }
+
         _menus.OnTick();
     }
 
@@ -375,7 +387,15 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
                                   Schema.GetSchemaOffset("CAttributeContainer", "m_Item");
         }
 
-        CBasePlayerWeapon weapon = new(itemPointer - _itemOffsetInWeapon);
+        // Nothing is read at the computed address until the entity list confirms a weapon lives there.
+        nint address = itemPointer - _itemOffsetInWeapon;
+        nint identity = FindEntityIdentity(address);
+        if (identity == 0 || new CEntityIdentity(identity).DesignerName?.StartsWith("weapon_", StringComparison.Ordinal) != true)
+        {
+            return;
+        }
+
+        CBasePlayerWeapon weapon = new(address);
         if (Server.CurrentTime - weapon.CreateTime > JustCreatedSeconds)
         {
             return;
@@ -391,6 +411,32 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
                 dropped.Remove();
             }
         });
+    }
+
+    /// <summary>
+    /// Walks the active entity list for the identity of the entity at <paramref name="entity"/>; 0 when
+    /// no live entity is there. Only the list's own pointers are read.
+    /// </summary>
+    private nint FindEntityIdentity(nint entity)
+    {
+        if (_identityNextOffset < 0)
+        {
+            _identityNextOffset = Schema.GetSchemaOffset("CEntityIdentity", "m_pNext");
+        }
+
+        nint identity = EntitySystem.FirstActiveEntity;
+        for (int step = 0; identity != 0 && step < MaxEntityWalk; step++)
+        {
+            // m_pInstance is the identity's first field.
+            if (Marshal.ReadIntPtr(identity) == entity)
+            {
+                return identity;
+            }
+
+            identity = Marshal.ReadIntPtr(identity, _identityNextOffset);
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -1191,7 +1237,7 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
         [
             new WasdMenuItem
             {
-                Label = Localizer.ForPlayer(player, "menu.groups_option"),
+                Label = () => Localizer.ForPlayer(player, "menu.groups_option"),
                 OnSelect = selected => _menus.Push(selected, BuildGroupMenu(selected))
             }
         ];
@@ -1200,7 +1246,7 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
         {
             items.Add(new WasdMenuItem
             {
-                Label = FormatCategory(player, category),
+                Label = () => FormatCategory(player, category),
                 Color = CategoryColor(category),
                 OnSelect = selected => _menus.Push(selected, BuildCategoryMenu(selected, category))
             });
@@ -1220,7 +1266,7 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
             Title = Localizer.ForPlayer(player, "menu.groups_title"),
             Items = WeaponCatalog.Groups.Select(group => new WasdMenuItem
             {
-                Label = FormatCategory(player, group),
+                Label = () => FormatCategory(player, group),
                 Color = CategoryColor(group),
                 OnSelect = selected => _menus.Push(selected, BuildTeamMenu(selected, new MenuSubject(null, group)))
             }).ToList()
@@ -1237,7 +1283,7 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
             Title = GetGroupName(player, category),
             Items = WeaponCatalog.InGroup(category).Select(weapon => new WasdMenuItem
             {
-                Label = FormatWeaponLine(weapon, tName, ctName),
+                Label = () => FormatWeaponLine(weapon, tName, ctName),
                 Color = CategoryColor(category),
                 OnSelect = selected => _menus.Push(selected, BuildTeamMenu(selected, new MenuSubject(weapon, category)))
             }).ToList()
@@ -1258,7 +1304,7 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
             Title = Localizer.ForPlayer(player, "menu.team_title", GetSubjectName(player, subject)),
             Items = teams.Select(entry => new WasdMenuItem
             {
-                Label = Localizer.ForPlayer(player, entry.Key),
+                Label = () => Localizer.ForPlayer(player, entry.Key),
                 Color = entry.Color,
                 OnSelect = selected => _menus.Push(selected, BuildLimitMenu(selected, subject, entry.Team))
             }).ToList()
@@ -1271,17 +1317,17 @@ public sealed class UmbrellaWeaponRestrictPlugin : BasePlugin, IPluginConfig<Umb
         [
             new WasdMenuItem
             {
-                Label = Localizer.ForPlayer(player, "menu.limit_unlimited"),
+                Label = () => Localizer.ForPlayer(player, "menu.limit_unlimited"),
                 OnSelect = selected => ApplyMenuSelection(selected, subject, team, RestrictionState.Unlimited)
             },
             new WasdMenuItem
             {
-                Label = Localizer.ForPlayer(player, "menu.limit_blocked"),
+                Label = () => Localizer.ForPlayer(player, "menu.limit_blocked"),
                 OnSelect = selected => ApplyMenuSelection(selected, subject, team, 0)
             },
             new WasdMenuItem
             {
-                Label = Localizer.ForPlayer(player, "menu.limit_custom"),
+                Label = () => Localizer.ForPlayer(player, "menu.limit_custom"),
                 OnSelect = selected => RequestChatLimit(selected, subject, team)
             }
         ];

@@ -27,3 +27,26 @@ logs/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Keys, certificates and credentials
+*.pem
+*.key
+*.pfx
+*.p12
+*.ppk
+id_rsa*
+id_ed25519*
+.env
+.env.*
+!.env.example
+*credentials*
+*secrets*
+*.token
+
+# Local databases
+*.db
+*.db-journal
+*.sqlite*
+
+# Assistant files
+.claude/

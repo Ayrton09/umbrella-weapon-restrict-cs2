@@ -7,7 +7,7 @@
 [![Release](https://img.shields.io/github/v/release/Ayrton09/umbrella-weapon-restrict-cs2?style=flat-square&color=success)](https://github.com/Ayrton09/umbrella-weapon-restrict-cs2/releases)
 [![License](https://img.shields.io/github/license/Ayrton09/umbrella-weapon-restrict-cs2?style=flat-square)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square)](https://dotnet.microsoft.com/)
-[![CounterStrikeSharp](https://img.shields.io/badge/CounterStrikeSharp-1.0.376-F5834A?style=flat-square)](https://docs.cssharp.dev/)
+[![CounterStrikeSharp](https://img.shields.io/badge/CounterStrikeSharp-1.0.380-F5834A?style=flat-square)](https://docs.cssharp.dev/)
 
 </div>
 

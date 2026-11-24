@@ -56,6 +56,12 @@ internal sealed class WasdMenuService
         _back = ToButtons(settings.BackKeys);
         _cancel = ToButtons(settings.CancelKeys);
 
+        Invalidate();
+    }
+
+    /// <summary>Redraws every open menu on the next tick, for when what the labels show has changed.</summary>
+    public void Invalidate()
+    {
         foreach (WasdMenuState state in _states.Values)
         {
             state.Html = null;
@@ -341,7 +347,7 @@ internal sealed class WasdMenuService
         {
             WasdMenuItem item = screen.Items[index];
             string marker = index == selected ? "▶ " : "• ";
-            html.Append($"<font color='{item.Color ?? DefaultColor}'>{marker}{Escape(Trim(item.Label, MaxItemLabelLength))}</font><br>");
+            html.Append($"<font color='{item.Color ?? DefaultColor}'>{marker}{Escape(Trim(item.Label(), MaxItemLabelLength))}</font><br>");
         }
 
         string controls = _localizer.ForPlayer(player, "menu.controls",
